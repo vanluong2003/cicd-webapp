@@ -16,6 +16,9 @@ pipeline {
         ECR_REPO_NAME = "vproimage"
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         AWS_CREDS_ID = "awscred"
+
+        ECS_CLUSTER_NAME = "vprofile-cluster"
+        ECS_SERVICE_NAME = "vprofile-task-service-cl645pvi"
     }
     stages {
         stage("Fetch Code") {
@@ -95,18 +98,25 @@ pipeline {
         }
         stage("Build Docker Image") {
             steps {
-                sh "docker build -t vproappimage:latest ."
-                sh "docker tag vproappimage:latest vproappimage:${BUILD_ID}"
+                sh "docker build -t ${ECR_REPO_NAME}:latest ."
+                sh "docker tag ${ECR_REPO_NAME}:latest ${ECR_REPO_NAME}:${BUILD_ID}"
             }
         }
         stage("Push to ECR") {
             steps {
                 withAWS(credentials: AWS_CREDS_ID, region: AWS_REGION) {
                     sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
-                    sh "docker tag vproappimage:latest ${ECR_REGISTRY}/${ECR_REPO_NAME}:lastest"
-                    sh "docker tag vproappimage:latest ${ECR_REGISTRY}/${ECR_REPO_NAME}:${BUILD_ID}"
+                    sh "docker tag ${ECR_REPO_NAME}:latest ${ECR_REGISTRY}/${ECR_REPO_NAME}:latest"
+                    sh "docker tag ${ECR_REPO_NAME}:latest ${ECR_REGISTRY}/${ECR_REPO_NAME}:${BUILD_ID}"
                     sh "docker push ${ECR_REGISTRY}/${ECR_REPO_NAME}:latest"
                     sh "docker push ${ECR_REGISTRY}/${ECR_REPO_NAME}:${BUILD_ID}"
+                }
+            }
+        }
+        stage("Deploy to ECS") {
+            steps {
+                withAWS(credentials: AWS_CREDS_ID, region: AWS_REGION) {
+                    sh "aws ecs update-service --cluster ${ECS_CLUSTER_NAME} --service ${ECS_SERVICE_NAME} --force-new-deployment"
                 }
             }
         }
@@ -114,6 +124,10 @@ pipeline {
     post {
         always {
             sh "docker image prune -f"
+            echo "Slack Notification: Build #${BUILD_NUMBER} - ${currentBuild.currentResult}"
+            slackSend(channel: '#devops',
+                color: currentBuild.currentResult == 'SUCCESS' ? 'good' : 'danger', 
+                message: "Build #${BUILD_NUMBER} - ${currentBuild.currentResult} - ${env.JOB_NAME} - ${env.BUILD_URL}")
         }
     }
 }
