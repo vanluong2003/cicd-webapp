@@ -45,10 +45,10 @@ The project demonstrates a production-like CI/CD pipeline that automates the pro
 ![ECR](images/ecr.png)
 ### ECS Service Running
 ![ECR](images/ecs.png)
-## Application Running
+### Application Running
 ![Task](images/task.png)
 ![App](images/prod.png)
-## Slack Notification
+### Slack Notification
 ![Slack](images/slack.png)
 
 ## Key Features
